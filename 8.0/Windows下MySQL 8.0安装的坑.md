@@ -8,7 +8,7 @@ MySQL 8.0的安装过程和MySQL5.7，大致安装过程可以参考5.7的安装
 
 否则编译通不过。
 
-`sql_locale.cc`,`sql_commands_help_data.h`,`sql_initialize.cc`,`test_string_service_charset.cc`
+`sql_locale.cc`,`sql_commands_help_data.h`(cmake生成的文件，不在源码目录),`sql_initialize.cc`,`test_string_service_charset.cc`
 
 #### 3. Windows下调试需要将VS“附加”到mysqld进程
 
