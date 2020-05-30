@@ -15,3 +15,10 @@ Win10下5.7的安装步骤在这里：https://github.com/inCeit/Win10_MySQL_Inst
 #### 3. Windows下调试需要将VS“附加”到mysqld进程
 
 在Windows下使用VS调试MySQL的时候，VS的版本要>= 1027。另外，还有一个问题，VS启动调试时默认是跟踪的`monitor mysqld`进程，而我们要跟踪的是mysqld进程。实现的方法是：选择“调试”->“附加到进程”，搜索mysqld进程名，并选中跟踪。
+
+#### 4. 初始化data目录之后，`show databases`的时候可能会如下错误
+
+``` mysql
+ERROR 1449 (HY000): The user specified as a definer ('mysql.infoschema'@'localhost') does not exist
+```
+需要在mysqld启动时加入`--upgrade=FORCE`，加了之后启动mysqld它会自动升级系统表用户，另外，可能会显示升级失败，不用关心，去掉这个选项重启之后再登录就可以正常`show databases`了。
