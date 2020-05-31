@@ -1,0 +1,68 @@
+
+
+### MySQL  8.0中一条SELECT语句的执行
+
+在MySQL  8.0中，SQL执行器的实现换成了`Vocalno`模型。执行一条SELECT时，优化器会首先生成执行计划，接着根据执行计划生成火山模型中最基本的组件——迭代器（Iterator）。本笔记只关注执行计划生成后，生成迭代器的部分。
+
+MySQL  8.0 SQL优化与执行部分的代码现在还没有稳定，本次阅读基于的是`MySQL 8.0.20`。假设我们要执行的SELECT语句如下：
+
+``` mysql
+mysql> select  * from  t1;
++------+------+
+| pk   | data |
++------+------+
+|    1 |    2 |
+|    2 |    3 |
++------+------+
+2 rows in set (15.24 sec)
+```
+
+#### 迭代器的创建：JOIN::create_iterators()
+
+迭代器的创建是优化器的最后一部分工作，具体来说，是在创建好执行计划后，接着根据执行计划创建对应的迭代器。SQL执行的代码都是在各种类型的迭代器中实现的。下面看一下优化器如何根据执行计划创建执行所需要的各种迭代器。迭代器的创建分为两步，首先为每个执行计划（QEP_TABLE，i.e.每个表）创建迭代器，用于访问每个表，接着把所有表的迭代器组合起来，创建一个根迭代器用于语句的执行。
+
+`JOIN::create_iterator()`函数分别执行了上面两步：
+
+``` c++
+void JOIN::create_iterators() {
+  DBUG_ASSERT(m_root_iterator == nullptr);
+
+  // 1) Set up the basic RowIterators for accessing each specific table.
+  create_table_iterators();
+
+  // 2) Create the composite iterators combining the row from each table.
+  unique_ptr_destroy_only<RowIterator> iterator =
+      create_root_iterator_for_join();
+
+  iterator = attach_iterators_for_having_and_limit(move(iterator));
+  m_root_iterator = move(iterator);
+}
+```
+
+#####  迭代器的类型
+
+通过阅读代码可以按照功能分为两类，一类是访问表的迭代器，例如按索引访问表的迭代器和全表扫描的迭代器，另一类我称它是函数式迭代器，这些迭代器用来实现一些功能，例如排序迭代器。
+
+- 访问表的迭代器根据访问表的方式不同由于以下几种，这些迭代器在`create_table_iterators();`的时候会为每个`QEP_TAB`创建。
+
+``` c++
+// 总的来说访问表的迭代器实现往往比较简单，通常是对存储引擎接口的封装。根据JOIN类型的值
+//create_table_iterators()会创建不同的迭代器。
+
+// 0. 所有访问表的迭代器都是TableRowIterator的子类，TableRowIterator最重要的一个
+//    方法是UnlockRows用来释放访问记录时所持有的行锁。
+class TableRowIterator : public RowIterator {
+ public:
+  TableRowIterator(THD *thd, TABLE *table) : RowIterator(thd), m_table(table) {}
+
+  /** 默认解锁是直接调用handler层的接口。 */
+  void TableRowIterator::UnlockRow() { m_table->file->unlock_row(); }
+};
+
+// JT_REF:
+
+
+```
+
+
+
