@@ -1,6 +1,6 @@
 ### MySQL 打开一张表的流程
 
-在做本地盘特性测试的时候，在一些表空间丢失或损坏的异常场景下，server层会报表不存在或表空间missing。当时只关注了`InnoDB`层的`ha_innobase::open`函数，对整个打开表的过程了解不是很清楚，现在再回头确认一下这些处理流程。搞清楚下面的问题：
+在做特性测试的时候，在一些表空间丢失或损坏的异常场景下，server层会报表不存在或表空间missing。当时只关注了`InnoDB`层的`ha_innobase::open`函数，对整个打开表的过程了解不是很清楚，现在再回头确认一下这些处理流程。搞清楚下面的问题：
 
 - 哪种情况返回`ER_NO_SUCH_TABLE`或`ER_TABLESPACE_MISSING`，差异之处在哪里。
 - server层表管理的逻辑，包括handler的生成，TABLE对象的生成，什么是TABLESHARE等。
