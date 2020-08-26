@@ -32,7 +32,124 @@ y = 200;                   ;
 
 根据内存操作类型，重排可能有四种类型：
 
+|       | store      | load      |
+| ----- | ---------- | --------- |
+| store | storestore | storeload |
+| load  | loadstore  | loadload  |
 
+#### x. C++中的内存序
+
+C++中的定义了语言层面上的内存序，好处是可以屏蔽硬件层面的内存序差异。
+
+##### x.1 std::memory_order
+
+C11中定了六种[memory order](http://www.cplusplus.com/reference/atomic/memory_order/)：
+
+``` c
+typedef enum memory_order {
+    memory_order_relaxed,   // relaxed
+    memory_order_consume,   // consume
+    memory_order_acquire,   // acquire
+    memory_order_release,   // release
+    memory_order_acq_rel,   // acquire/release
+    memory_order_seq_cst    // sequentially consistent
+} memory_order;
+```
+
+通过阅读手册，每个内存序类型的功能如下：
+
+- memory_order_relaxed
+
+最弱的内存序，只保证了对应的操作是原子性的。这个操作可能被重排到其他位置。该内存序的典型应用场景就是计数器。
+
+- memory_order_consume [针对load操作]
+
+在有数据依赖的场景下，是对memory_order_acquire内存序的优化。参考下面的[例子](https://preshing.com/20140709/the-purpose-of-memory_order_consume-in-cpp11/)：
+
+```c++
+g = Guard.load(memory_order_acquire);
+if (g != nullptr)
+    p = *g
+```
+
+在上面的例子中变量p和变量g存在依赖关系，这种情况下某些cpu架构下（e.g. ARM）不需要使用memory fence指令就能保证需要的内存序，从而效率更高。所以上面的代码在使用memory_order_consume 后**可能**性能更好:
+
+``` c++
+g = Guard.load(memory_order_consume);
+if (g != nullptr)
+    p = *g
+```
+
+memory_order_acquire是比memory_order_consume更强的内存序。只要memory_order_consume可以用的地方，就可以替换成memory_order_acquire。consume和acquire的目的是一致的：保证多个线程对非原子信息（例如多个变量）的访问是安全的。和acquire类似，consume操作也必须和另外一个线程的release操作配合使用。
+
+- memory_order_acquire [针对load操作]
+
+这里不好翻译，直接放中英对照了：
+
+``` shell
+The operation is ordered to happen once all accesses to memory in the releasing thread (that have visible side effects on the loading thread) have happened.
+----
+指定的内存操作需要在之前所有对release线程内存的访问操作都完成的情况下才能执行。
+```
+
+- memory_order_release [针对store操作]
+
+指定的操作作为一个同步点，其他所有可能对load线程有可见性影响的内存操作（store）都要在这个同步点以后发生。
+
+- memory_order_acq_rel [针对store和load操作]
+
+效果等于memory_order_release + memory_order_acquire，即如果操作是store则应用memory_order_release，如果操作是release则应用memory_order_acquire。
+
+- memory_order_seq_cst
+
+最严格的内存序。所有使用memory_order_seq_cst的内存操作都是全局有序的。acquire-release提供了相对于某一个原子变量的内存顺序访问，sql_cst则提供了全局有序的内存访问。在多个生产者和消费者的场景下，所有的消费者必须保证看到的所有生产者的顺序是一致的。
+
+sql_cst需要full memory fence指令来保证修改传播到每个cpu上，所以可能会带来性能开销。这里有一个[例子](https://en.cppreference.com/w/cpp/atomic/memory_order#Sequentially-consistent_ordering)，展示了除memory_order_seq_cst之外的其他内存序都可能触发断言。下面的例子中，z的值由两个原子变量x,y来控制。使用memory_order_seq_cst可以保证所有线程读到的x,y的值都是相同的。
+
+``` c++
+
+std::atomic<bool> x = {false};
+std::atomic<bool> y = {false};
+std::atomic<int> z = {0};
+ 
+void write_x()
+{
+    x.store(true, std::memory_order_seq_cst);
+}
+ 
+void write_y()
+{
+    y.store(true, std::memory_order_seq_cst);
+}
+ 
+void read_x_then_y()
+{
+    while (!x.load(std::memory_order_seq_cst))
+        ;
+    if (y.load(std::memory_order_seq_cst)) {
+        ++z;
+    }
+}
+ 
+void read_y_then_x()
+{
+    while (!y.load(std::memory_order_seq_cst))
+        ;
+    if (x.load(std::memory_order_seq_cst)) {
+        ++z;
+    }
+}
+ 
+int main()
+{
+    std::thread a(write_x);
+    std::thread b(write_y);
+    std::thread c(read_x_then_y);
+    std::thread d(read_y_then_x);
+    a.join(); b.join(); c.join(); d.join();
+    assert(z.load() != 0);  // will never happen
+}
+```
 
 
 
