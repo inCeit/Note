@@ -36,3 +36,9 @@
 2）DDS：变更CPU/内存规格期间，可能会造成1~2次的主备倒换，期间数据库无法提供服务，每次不超过30s。建议业务空闲时变更，并且确保业务系统对数据库有重连机制。
 3）Redis：Redis4.0/5.0实例变更期间，连接会有秒级中断，大约1分钟的只读。
 4）Kafka：Kafka扩容带宽/存储空间，都不会影响业务的使用。
+
+8.创建复制账户语句
+
+CREATE USER 'drs'@'%' IDENTIFIED BY 'Huawei123!@#';
+GRANT REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO 'drs'@'%';
+GRANT SELECT, SHOW VIEW, EVENT, LOCK TABLES ON *.* TO 'drs'@'%';
